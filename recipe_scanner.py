@@ -20,6 +20,8 @@ class RecipeScannerApp:
         self.save_path = self.load_last_path() or os.path.abspath("Recipes")
         self.setup_home()
 
+        self.selected_source_name = None  # store the scanner source name
+
     def load_last_path(self):
         try:
             with open(self.CONFIG_FILE, "r") as f:
@@ -123,7 +125,18 @@ class RecipeScannerApp:
                 messagebox.showerror("Open File", f"Could not open file:\n{abspath}\n\n{e}")
 
     def start_new_recipe(self):
-        RecipeDialog(self.root, self.save_path, on_done=self.on_recipe_done)
+        # If scanner not selected, prompt for it once per session
+        if not self.selected_source_name:
+            try:
+                import twain
+                with twain.SourceManager() as sm:
+                    src = sm.open_source()  # show selection dialog
+                    if src:
+                        self.selected_source_name = src.GetSourceName()
+            except Exception as e:
+                messagebox.showerror("Scanner Error", f"Could not select scanner: {e}")
+                return
+        RecipeDialog(self.root, self.save_path, on_done=self.on_recipe_done, selected_source_name=self.selected_source_name)
 
     def on_recipe_done(self):
         self.populate_tree()
@@ -164,13 +177,15 @@ class RecipeDialog:
 
         preview.wait_window()
         return result["action"]
-    def __init__(self, parent, base_dir, on_done):
+    def __init__(self, parent, base_dir, on_done, selected_source_name=None):
         self.base_dir = base_dir
         self.on_done = on_done
         self.win = tk.Toplevel(parent)
         self.win.title("New Recipe")
         self.win.geometry("400x300")
         self.win.grab_set()
+
+        self.selected_source_name = selected_source_name  # store the scanner source name
 
         # Recipe info form
         tk.Label(self.win, text="Recipe Name:").pack(pady=5)
@@ -273,7 +288,7 @@ class RecipeDialog:
             return False
         try:
             with twain.SourceManager() as sm:
-                src = sm.open_source()
+                src = sm.open_source(self.selected_source_name) if self.selected_source_name else None
                 if src:
                     src.request_acquire(show_ui=False, modal_ui=False)
                     (handle, remaining_count) = src.xfer_image_natively()
