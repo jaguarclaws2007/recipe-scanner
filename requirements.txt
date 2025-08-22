@@ -1,0 +1,5 @@
+# requirements.txt for recipes_app
+fpdf
+Pillow
+twain
+pytest
